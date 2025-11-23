@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Машинки - Игра</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #2c3e50, #4ca1af);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 3px solid #fff;
+            border-radius: 10px;
+            background: #1a1a1a;
+        }
+        
+        #score {
+            color: white;
+            font-size: 24px;
+            margin: 10px 0;
+        }
+        
+        #controls {
+            color: #ccc;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        #gameOver {
+            color: red;
+            font-size: 32px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        #restartBtn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        #restartBtn:hover {
+            background: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1 style="color: white;">МАШИНКИ</h1>
+        <div id="score">Очки: 0</div>
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="gameOver">ИГРА ОКОНЧЕНА!</div>
+        <button id="restartBtn">Играть снова</button>
+        <div id="controls">
+            Управление: ← → стрелки для движения<br>
+            Избегайте столкновений с другими машинами!
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Игровая машина
+        const playerCar = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 100,
+            width: 50,
+            height: 80,
+            speed: 5,
+            color: '#3498db'
+        };
+
+        // Машины противников
+        let enemyCars = [];
+        let score = 0;
+        let gameRunning = true;
+        let roadOffset = 0;
+
+        // Дорожная разметка
+        const roadMarks = [];
+        for (let i = 0; i < 10; i++) {
+            roadMarks.push({
+                x: canvas.width / 2 - 5,
+                y: i * 80,
+                width: 10,
+                height: 40
+            });
+        }
+
+        // Управление
+        const keys = {
+            left: false,
+            right: false
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') keys.left = true;
+            if (e.key === 'ArrowRight') keys.right = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') keys.left = false;
+            if (e.key === 'ArrowRight') keys.right = false;
+        });
+
+        restartBtn.addEventListener('click', restartGame);
+
+        function createEnemyCar() {
+            const laneWidth = canvas.width / 3;
+            const lanes = [laneWidth / 2 - 25, laneWidth + laneWidth / 2 - 25, 2 * laneWidth + laneWidth / 2 - 25];
+            
+            enemyCars.push({
+                x: lanes[Math.floor(Math.random() * lanes.length)],
+                y: -100,
+                width: 50,
+                height: 80,
+                speed: 3 + Math.random() * 2 + Math.floor(score / 10) * 0.5,
+                color: `hsl(${Math.random() * 360}, 70%, 50%)`
+            });
+        }
+
+        function updatePlayer() {
+            if (keys.left && playerCar.x > 50) {
+                playerCar.x -= playerCar.speed;
+            }
+            if (keys.right && playerCar.x < canvas.width - playerCar.width - 50) {
+                playerCar.x += playerCar.speed;
+            }
+        }
+
+        function updateEnemies() {
+            for (let i = enemyCars.length - 1; i >= 0; i--) {
+                enemyCars[i].y += enemyCars[i].speed;
+                
+                // Проверка столкновения
+                if (checkCollision(playerCar, enemyCars[i])) {
+                    gameOver();
+                    return;
+                }
+                
+                // Удаление машин за пределами экрана
+                if (enemyCars[i].y > canvas.height) {
+                    enemyCars.splice(i, 1);
+                    score++;
+                    scoreElement.textContent = `Очки: ${score}`;
+                }
+            }
+        }
+
+        function updateRoad() {
+            roadOffset += 5;
+            if (roadOffset >= 80) roadOffset = 0;
+            
+            for (let mark of roadMarks) {
+                mark.y += 5;
+                if (mark.y > canvas.height) {
+                    mark.y = -40;
+                }
+            }
+        }
+
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        function drawRoad() {
+            // Дорога
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Бордюры
+            ctx.fillStyle = '#95a5a6';
+            ctx.fillRect(0, 0, 40, canvas.height);
+            ctx.fillRect(canvas.width - 40, 0, 40, canvas.height);
+            
+            // Разметка
+            ctx.fillStyle = '#f1c40f';
+            for (let mark of roadMarks) {
+                ctx.fillRect(mark.x, mark.y + roadOffset, mark.width, mark.height);
+            }
+        }
+
+        function drawCar(car) {
+            // Кузов
+            ctx.fillStyle = car.color;
+            ctx.fillRect(car.x, car.y, car.width, car.height);
+            
+            // Окна
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(car.x + 5, car.y + 5, car.width - 10, 20);
+            
+            // Фары
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(car.x + 5, car.y + car.height - 15, 10, 10);
+            ctx.fillRect(car.x + car.width - 15, car.y + car.height - 15, 10, 10);
+            
+            // Колёса
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(car.x - 5, car.y + 10, 5, 20);
+            ctx.fillRect(car.x + car.width, car.y + 10, 5, 20);
+            ctx.fillRect(car.x - 5, car.y + car.height - 30, 5, 20);
+            ctx.fillRect(car.x + car.width, car.y + car.height - 30, 5, 20);
+        }
+
+        function draw() {
+            // Очистка
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Рисование дороги
+            drawRoad();
+            
+            // Рисование машин противников
+            for (let car of enemyCars) {
+                drawCar(car);
+            }
+            
+            // Рисование игрока
+            drawCar(playerCar);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            gameOverElement.style.display = 'block';
+            restartBtn.style.display = 'block';
+        }
+
+        function restartGame() {
+            playerCar.x = canvas.width / 2 - 25;
+            enemyCars = [];
+            score = 0;
+            gameRunning = true;
+            gameOverElement.style.display = 'none';
+            restartBtn.style.display = 'none';
+            scoreElement.textContent = `Очки: ${score}`;
+        }
+
+        function gameLoop() {
+            if (gameRunning) {
+                updatePlayer();
+                updateEnemies();
+                updateRoad();
+                
+                // Создание новых машин
+                if (Math.random() < 0.02) {
+                    createEnemyCar();
+                }
+            }
+            
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Запуск игры
+        gameLoop();
+    </script>
+</body>
+</html>
